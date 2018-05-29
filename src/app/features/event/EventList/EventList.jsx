@@ -5,12 +5,12 @@ class EventList extends Component {
   render() {
 
     // "events" is passed doen from EventDashboard
-    const { events } = this.props;
+    const { events, onEventOpen, deleteEvent } = this.props;
 
     return (
       <div>
         { events.map((event) => (
-          <EventListItem key={ event.id } event={ event } />
+          <EventListItem key={ event.id } event={ event } onEventOpen={ onEventOpen } deleteEvent={ deleteEvent } />
         ))}
       </div>
     )
