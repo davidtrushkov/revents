@@ -3,9 +3,8 @@ import { connect } from 'react-redux';
 import { incrementCounter, decrementCounter } from './testActions';
 import { Button, Icon } from 'semantic-ui-react';
 import PlacesAutocomplete, { geocodeByAddress, getLatLng } from 'react-places-autocomplete';
-
+import { openModal } from '../modals/modalActions';
 import GoogleMapReact from 'google-map-react';
-
 import Script from 'react-load-script';
 
 const Marker = () => <Icon name='marker' size='big' color='red' />
@@ -57,12 +56,16 @@ class TestComponent extends Component {
         <Button onClick={ this.props.decrementCounter } color='red' content='Decrement' />
         <hr /><br />
 
+        <Button onClick={ () => this.props.openModal('TestModal', {date: 43}) } color='teal' content='Open Modal' />
+
         <form onSubmit={this.handleFormSubmit}>
           { this.state.scriptLoaded && <PlacesAutocomplete inputProps={inputProps} /> }
           <button type="submit">Submit</button>
         </form>
         
-        <div style={{ height: '300px', width: '100%' }}>
+
+
+        {/* <div style={{ height: '300px', width: '100%' }}>
           <GoogleMapReact
             bootstrapURLKeys={{ key: 'AIzaSyAhJ5dtIK33MlLMWl9B9MX4-2ZaRlDKzBg' }}
             defaultCenter={this.props.center}
@@ -73,8 +76,8 @@ class TestComponent extends Component {
               lng={30.337844}
               text={'Kreyser Avrora'}
             />
-          </GoogleMapReact>
-        </div>
+          </GoogleMapReact> */}
+        {/* </div> */}
 
       </div>
     )
@@ -89,7 +92,8 @@ const mapStateToProps = state => {
 
 const mapDispatchToProps = {
   incrementCounter,
-  decrementCounter
+  decrementCounter,
+  openModal
 }
 
 export default connect(mapStateToProps, mapDispatchToProps)(TestComponent);

@@ -10,6 +10,7 @@ const SignedOutMenu = (props) => {
             inverted
             content="Register"
             style={{ marginLeft: "0.5em" }}
+            onClick={ props.register }
         />
     </Menu.Item>
   );
