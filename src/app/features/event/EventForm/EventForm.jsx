@@ -1,3 +1,4 @@
+/* global google */
 import React, { Component } from "react";
 import { connect } from 'react-redux';
 import cuid from 'cuid';
@@ -5,12 +6,15 @@ import { Segment, Form, Button, Grid, Header } from "semantic-ui-react";
 import { createEvent, updateEvent } from '../eventActions';
 import { reduxForm, Field } from 'redux-form';
 import { composeValidators, combineValidators, isRequired, hasLengthGreaterThan } from 'revalidate';
+import moment from 'moment';
+import { geocodeByAddress, getLatLng } from 'react-places-autocomplete';
+import Script from 'react-load-script';
 
 import TextInput from '../../../common/form/TextInput';
 import TextArea from '../../../common/form/TextArea';
 import SelectInput from '../../../common/form/SelectInput';
 import DateInput from '../../../common/form/DateInput';
-import moment from 'moment';
+import PlaceInput from '../../../common/form/PlaceInput';
 
 const mapStateToProps = (state, ownProps) => {
   // Get the event ID from the Props - match - params - id (Go to React in console) (thats coming from URL)
@@ -59,8 +63,44 @@ const validate = combineValidators({
 
 class EventForm extends Component {
 
+  state = {
+    cityLatLng: {},
+    venueLatLng: {},
+    scriptLoaded: false
+  }
+
+  handleScriptLoaded = () => this.setState({ scriptLoaded: true });
+
+  handleCitySelect = (selectedCity) => {
+    geocodeByAddress(selectedCity)
+    .then(results => getLatLng(results[0]))
+    .then(latlng => {
+      this.setState({
+        cityLatLng: latlng
+      })
+    }).then(() => {
+      // Adds city to input when user clicks with mouse in dropdown of selected cities
+      this.props.change('city', selectedCity)
+    })
+  }
+
+  handleVenueSelect = (selectedVenue) => {
+    geocodeByAddress(selectedVenue)
+    .then(results => getLatLng(results[0]))
+    .then(latlng => {
+      this.setState({
+        venueLatLng: latlng
+      })
+    }).then(() => {
+      // Adds city to input when user clicks with mouse in dropdown of selected cities
+      this.props.change('venue', selectedVenue)
+    })
+  }
+
   onFormSubmit = values => {
     values.date = moment(values.date).format();
+
+    values.venueLatLng = this.state.venueLatLng;
 
     // If the event has an ID, then update the event data passed in, else, create a new event with data passed in
     if (this.props.initialValues.id) {
@@ -85,6 +125,7 @@ class EventForm extends Component {
 
     return (
       <Grid>
+        <Script url='https://maps.googleapis.com/maps/api/js?key=AIzaSyAhJ5dtIK33MlLMWl9B9MX4-2ZaRlDKzBg&libraries=places' onLoad={ this.handleScriptLoaded } />
         <Grid.Column width={10}>
         <Segment>
           <Header color='teal' content='Event Details' />
@@ -94,8 +135,25 @@ class EventForm extends Component {
             <Field name='description' type='text' component={ TextArea } rows={5} placeholder='Tell us about your event' />
 
             <Header color='teal' content='Event Location Details' />
-            <Field name='city' type='text' component={ TextInput } placeholder='Event city' />
-            <Field name='venue' type='text' component={ TextInput } placeholder='Event venue' />
+
+            <Field 
+              name='city' 
+              type='text' 
+              component={ PlaceInput } options={{ types: ['(cities)'] }} 
+              placeholder='Event city' 
+              onSelect={ this.handleCitySelect } />
+
+
+            { this.state.scriptLoaded && 
+            <Field 
+              name='venue' 
+              type='text' 
+              component={ PlaceInput } 
+              options={{ location: new google.maps.LatLng(this.state.cityLatLng), radius: 1000, types: ['establishment'] }} 
+              placeholder='Event venue'
+              onSelect={ this.handleVenueSelect } />
+            }
+
             <Field name='date' type='text' component={ DateInput } dateFormat='YYYY-MM-DD HH:mm' timeFormat='HH:mm' showTimeSelect placeholder='Date and time of event' />
             <Button disabled={ invalid || submitting || pristine } positive type="submit">
               Submit
