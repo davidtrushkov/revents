@@ -8,12 +8,10 @@ import { BrowserRouter } from "react-router-dom";
 import { Provider } from 'react-redux';
 import { configureStore } from './app/store/configureStore';
 import ScrollToTop from './app/common/util/ScrollToTop';
-import { loadEvents } from './app/features/event/eventActions';
 import 'react-redux-toastr/lib/css/react-redux-toastr.min.css';
 import ReduxToastr from 'react-redux-toastr';
 
 const store = configureStore();
-store.dispatch(loadEvents());
 
 const rootEl = document.getElementById("root");
 
@@ -40,7 +38,10 @@ if (module.hot) {
   });
 }
 
-render();
+// When authenticated is loaded from firebase, then render
+store.firebaseAuthIsReady.then(() => {
+  render();
+})
 
 registerServiceWorker();
 

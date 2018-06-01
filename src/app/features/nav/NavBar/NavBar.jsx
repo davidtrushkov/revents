@@ -5,15 +5,15 @@ import SignedOutMenu from '../NavBar/Menus/SignedOutMenu';
 import SignedInMenu from '../NavBar/Menus/SignedInMenu';
 import { connect } from 'react-redux';
 import { openModal } from '../../modals/modalActions';
-import { logout } from '../../auth/authActions';
+import { withFirebase } from 'react-redux-firebase';
 
 const actions = {
-  openModal,
-  logout
+  openModal
 };
 
 const mapStateToProps = (state) => ({
-  auth: state.auth
+  auth: state.firebase.auth,
+  profile: state.firebase.profile
 });
 
 class NavBar extends Component {
@@ -27,15 +27,18 @@ class NavBar extends Component {
   }
 
   handleSignOut = () => {
-    this.props.logout();
+    this.props.firebase.logout();
 
     // -- Add "withRouter" in the bottom for this to work.
     this.props.history.push('/');
   }
 
   render() {
-    const { auth } = this.props;
-    const authenticated = auth.authenticated;
+    const { auth, profile } = this.props;
+
+    // "auth.isLoaded and auth.isEmpty" coming from the props in "auth"
+    // Check if auth is loaded method is checked AND if auth is NOT empty
+    const authenticated = auth.isLoaded && !auth.isEmpty;
 
     return (
       <Menu inverted fixed="top">
@@ -51,11 +54,11 @@ class NavBar extends Component {
           <Menu.Item>
             <Button as={ Link } to='/createEvent' floated="right" positive inverted content="Create Event" />
           </Menu.Item> }
-          { authenticated ? <SignedInMenu currentUser={ auth.currentUser } signOut={ this.handleSignOut } /> : <SignedOutMenu signIn={ this.handleSignIn } register={ this.handleRegister } /> }
+          { authenticated ? <SignedInMenu profile={ profile } signOut={ this.handleSignOut } /> : <SignedOutMenu signIn={ this.handleSignIn } register={ this.handleRegister } /> }
         </Container>
       </Menu>
     );
   }
 }
 
-export default withRouter(connect(mapStateToProps, actions)(NavBar));
+export default withRouter(withFirebase(connect(mapStateToProps, actions)(NavBar)));

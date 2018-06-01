@@ -26,14 +26,14 @@ class EventListItem extends Component {
         </Segment>
         <Segment>
           <span>
-            <Icon name="clock" /> { format(event.date, 'dddd Do MMMM') } at{' '} { format(event.date, 'HH:mm')} |
+            <Icon name="clock" /> { format(event.date.toDate(), 'dddd Do MMMM') } at{' '} { format(event.date.toDate(), 'HH:mm')} |
             <Icon name="marker" /> { event.venue }
           </span>
         </Segment>
         <Segment secondary>
           <List horizontal>
-          { event.attendee && event.attendees.map((attendee) => (
-            <EventListAttendee key={ attendee.id } attendee={ attendee } />
+          { event.attendee && Object.values(event.attendees).map((attendee, index) => (  // Use "Object.values()" to turn attendees into array for Firestore so we can then map them
+            <EventListAttendee key={ index } attendee={ attendee } />
           ))}
           </List>
         </Segment>
