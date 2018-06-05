@@ -1,5 +1,7 @@
 import moment from 'moment';
 import { toastr } from 'react-redux-toastr';
+import cuid from 'cuid';
+import { asyncActionError, asyncActionStart, asyncActionFinish } from '../async/asyncActions';
 
 export const updateProfile = (user) => 
     async (dispatch, getState, { getFirebase }) => {
@@ -24,3 +26,103 @@ export const updateProfile = (user) =>
             console.log(error);
         }
     }
+
+export const uploadProfileImage = (file, filename) =>
+    async (dispatch, getState, { getFirebase, getFirestore})  => {
+        const imageName = cuid();
+        const firebase = getFirebase();
+        const firestore = getFirestore();
+        const user = firebase.auth().currentUser;
+        const path = `${user.uid}/user_images`;
+
+        // Set the file name to a random string
+        const options = {
+            name: imageName
+        };
+
+        try {
+
+            // Create hooks in our reducer to tell us when something is started and when finished
+            dispatch(asyncActionStart());
+
+            // Upload the file to Firebase storage
+            let uploadedFile = await firebase.uploadFile(path, file, null, options);
+
+            // Get URL of the image from Firebase storage
+            let downloadURL = await uploadedFile.uploadTaskSnapshot.downloadURL;
+
+            // Get the user doc from Firestore, then check if user already has photo inside,
+            // if not, then update thier user profile with image that was uploaded
+            let userDoc = await firestore.get(`users/${user.uid}`);
+
+            if (!userDoc.data().photoURL) {
+                console.log('Inside IF statement.');
+                // Update our Firestore document
+                await firebase.updateProfile({
+                    photoURL: downloadURL
+                });
+
+                // Update auth profile inside Firebase authentication
+                await user.updateProfile({
+                    photoURL: downloadURL
+                })
+            }
+
+            // Add the new photo to photos collection
+            await firestore.add({
+                collection: 'users',
+                doc: user.uid,
+                subcollections: [{ collection: 'photos' }]
+            }, {
+                name: imageName,
+                url: downloadURL
+            });
+
+            dispatch(asyncActionFinish());
+
+        } catch (error) {
+            console.log(error);
+            dispatch(asyncActionError());
+            throw new Error('Problem uploading photo');
+        }
+    }   
+
+export const deletePhoto = (photo) => 
+    async (dispatch, getState, { getFirebase, getFirestore }) => {
+        const firebase = getFirebase();
+        const firestore = getFirestore();
+
+        // Get current user signed in from Firebase
+        const user = firebase.auth().currentUser;
+
+        try {
+            // Delete image from firebase storage
+            await firebase.deleteFile(`${user.uid}/user_images/${photo.name}`);
+
+            // Delete image from photo collection in Firestore
+            await firestore.delete({
+                collection: 'users',
+                doc: user.uid,
+                subcollections: [{ collection: 'photos', doc: photo.id }]
+            });
+
+        } catch (error) {
+            console.log(error);
+            throw new Error('Problem deleting the photo');
+        }
+    }
+
+export const setMainPhoto = photo =>
+    async (dispatch, getState, { getFirebase }) => {
+        const firebase = getFirebase();
+        
+        try {
+            return await firebase.updateProfile({
+                photoURL: photo.url
+            });
+        } catch (error) {
+            console.log(error);
+            throw new Error('Problem seting main photo');
+        }
+    }
+       
