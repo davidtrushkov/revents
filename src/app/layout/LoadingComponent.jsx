@@ -9,4 +9,4 @@ const LoadingComponent = ({ inverted }) => {
   )
 }
 
-export default LoadingComponent
+export default LoadingComponent;

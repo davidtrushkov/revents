@@ -1,53 +1,64 @@
 import React, {Component} from 'react';
 import { Grid } from "semantic-ui-react";
 import { connect } from 'react-redux';
-import { firestoreConnect } from 'react-redux-firebase';
+import { firestoreConnect, isEmpty } from 'react-redux-firebase';
 import { compose } from 'redux';
+import { userDetailedQuery } from '../userQueries';
+import LoadingComponent from '../../../layout/LoadingComponent';
+
 import UserDetailedHeader from './UserDetailedHeader';
 import UserDetailedDescription from './UserDetailedDescription';
 import UserDetailedEvents from './UserDetailedEvents';
 import UserDetailedPhotos from './UserDetailedPhotos';
 import UserDetailedSidebar from './UserDetailedSidebar';
 
-// Need to bring this import to connect to user photos collection: "import { firestoreConnect } from 'react-redux-firebase';"
-// Do a query to get subcollection of photos for our particular user
-const query = ({ auth }) => {
-  return [
-    {
-      collection: 'users',
-      doc: auth.uid,
-      subcollections: [{collection: 'photos'}],
-      storeAs: 'photos'
-    }
-  ]
-}
+const mapStateToPRops = (state, ownProps) => {
+  let userUid = null;
+  let profile = {};
 
-const mapStateToPRops = (state) => ({
-  profile: state.firebase.profile,
-  auth: state.firebase.auth,
-  photos: state.firestore.ordered.photos
-})
+  // Check if the url ID params matches the current user Uid, then set "profile" to that, else,
+  // get the profile that matches this URL from firestore (we  also do some checking to see if it is not empty with "isEmpty")
+  if (ownProps.match.params.id === state.auth.uid) {
+    profile = state.firebase.profile
+  } else {
+    profile = !isEmpty(state.firestore.ordered.profile) && state.firestore.ordered.profile[0];
+    userUid = ownProps.match.params.id;
+  }
+
+  return {
+    profile,
+    userUid,
+    auth: state.firebase.auth,
+    photos: state.firestore.ordered.photos,
+    requesting: state.firestore.status.requesting  // Check if we are in process of requesting data from Firestore
+  }
+}
 
 class UserDetailedPage extends Component {
     render() {
-      const { profile, photos } = this.props;
-        return (
-            <Grid>
-              <UserDetailedHeader profile={ profile } />
-              <UserDetailedDescription profile={ profile } />
-              <UserDetailedSidebar />
+      const { profile, photos, auth, match, requesting } = this.props;
+      const isCurrentUser = auth.uid === match.params.id;
+      const loading = Object.values(requesting).some(a => a === true);
 
-              { photos && photos.length > 0 &&
-                <UserDetailedPhotos photos={ photos } />
-              }
+      if (loading) return <LoadingComponent inverted={true} />
 
-              <UserDetailedEvents />
-            </Grid>
-        );
+      return (
+          <Grid>
+            <UserDetailedHeader profile={ profile } />
+            <UserDetailedDescription profile={ profile } />
+            <UserDetailedSidebar isCurrentUser={ isCurrentUser } />
+
+            { photos && photos.length > 0 &&
+              <UserDetailedPhotos photos={ photos } />
+            }
+
+            <UserDetailedEvents />
+          </Grid>
+      );
     }
 }
 
 export default compose(
   connect(mapStateToPRops),
-  firestoreConnect(auth => query(auth)),
+  firestoreConnect((auth, userUid) => userDetailedQuery(auth, userUid)),
 )(UserDetailedPage);

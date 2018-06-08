@@ -5,12 +5,10 @@ import EventList from "../EventList/EventList";
 import EventActivity from '../EventActivity/EventActivity';
 import { deleteEvent } from '../eventActions';
 import LoadingComponent from '../../../layout/LoadingComponent';
-
-import { firestoreConnect } from 'react-redux-firebase';  // Enables to connect to Firestore
+import { firestoreConnect, isLoaded, isEmpty } from 'react-redux-firebase';  // Enables to connect to Firestore
 
 const mapStateToProps = (state) => ({
-  events: state.firestore.ordered.events,
-  loading: state.async.loading
+  events: state.firestore.ordered.events
 });
 
 const actions = {
@@ -24,9 +22,9 @@ class EventDashboard extends Component {
   }
 
   render() {
-    const { events, loading } = this.props;
+    const { events } = this.props;
 
-    if (loading) return <LoadingComponent inverted={ true } />
+    if (!isLoaded(events) || isEmpty(events)) return <LoadingComponent inverted={ true } />
 
     return (
       <div>

@@ -126,3 +126,59 @@ export const setMainPhoto = photo =>
         }
     }
        
+export const goingToEvent = (event) =>
+    async (dispatch, getState, { getFirestore }) => {
+        const firestore = getFirestore();
+        const user = firestore.auth().currentUser;
+        const photoURL = getState().firebase.profile.photoURL;
+
+        const attendee = {
+            going: true,
+            joinDate: Date.now(),
+            photoURL: photoURL || '/assets/user.png',
+            displayName: user.displayName,
+            host: false
+        };
+
+        try {
+            // Add a new attendee to the exisitng event under attendee object map
+            await firestore.update(`events/${event.id}`, {
+                [`attendees.${user.uid}`]: attendee
+            })
+
+            // Update the event_attendees document in firestore
+            await firestore.set(`event_attendee/${event.id}_${user.uid}`, {
+                eventId: event.id,
+                userUid: user.uid,
+                eventDate: event.date,
+                host: false
+            })
+
+            toastr.success('Success', 'You have signed up to the event');
+        } catch (error) {
+            console.log(error);
+            toastr.error('Oops', 'Problem signing up to event');
+        }
+    }  
+    
+export const cancelGoingToEvent = (event) =>
+    async (dispatch, getState, { getFirestore }) => {
+        const firestore = getFirestore();
+        const user = firestore.auth().currentUser;
+
+        try {
+
+            // Remove the attendee Object inside our map in an event
+            await firestore.update(`events/${event.id}`, {
+                [`attendees.${user.uid}`]: firestore.FieldValue.delete()
+            })
+
+            // Remove the document from our attendee lookup 
+            await firestore.delete(`event_attendee/${event.id}_${user.uid}`);
+
+            toastr.success('Success', 'You have removed yourself from the event');
+        } catch (error) {
+            console.log(error);
+            toastr.error('Oops', 'Something went wrong');
+        }
+    }
