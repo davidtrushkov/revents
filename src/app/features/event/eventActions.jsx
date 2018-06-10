@@ -3,7 +3,16 @@ import { asyncActionStart, asyncActionFinish, asyncActionError } from '../async/
 import { fetchSampleData } from '../../data/mockApi';
 import { toastr } from 'react-redux-toastr';
 import { createNewEvent } from '../../common/util/helpers';
-import { moment } from 'moment';
+import moment from 'moment';
+import firebase from '../../config/firebase';
+
+export const fetchEvents = events => {
+    return {
+      type: actions.FETCH_EVENTS,
+      payload: events
+    };
+  };
+
 
 export const createEvent = event => {
     return async (dispatch, getState, { getFirestore }) => {
@@ -34,24 +43,23 @@ export const createEvent = event => {
     }
 }
 
-export const updateEvent = (event) => {
+export const updateEvent = event => {
     return async (dispatch, getState, { getFirestore }) => {
+      const firestore = getFirestore();
+  
+      if (event.date !== getState().firestore.ordered.events[0].date) {
+        event.date = moment(event.date).toDate();
+      }
 
-        const firestore = getFirestore();
-
-        if (event.date !== getState().firestore.ordered.events[0].date) {
-            event.date = moment(event.date).toDate();
-        }
-
-        try {
-            await firestore.update(`events/${event.id}`, event);
-
-            toastr.success('Success!', 'Event has been updated');
-        } catch (error) {
-            toastr.error('Oops!', 'Something went wrong');
-        }
-    }
-}
+      try {
+        await firestore.update(`events/${event.id}`, event);
+        toastr.success('Success', 'Event has been updated');
+      } catch (error) {
+        console.log(error);
+        toastr.error('Oops', 'Something went wrong');
+      }
+    };
+};
 
 export const cancelToggle = (cancelled, eventId) => 
     async (dispatch, getState, { getFirestore }) => {
@@ -69,33 +77,54 @@ export const cancelToggle = (cancelled, eventId) =>
         }
     }
 
+export const getEventsForDashboard = (lastEvent) => async (dispatch, getState) => {
 
-export const deleteEvent = (eventId) => {
-    return {
-        type: actions.DELETE_EVENT,
-        payload: {
-            eventId
-        }
-    }
-}
+        let today = new Date(Date.now());
+        let firestore = firebase.firestore();
 
-export const fetchEvents = (events) => {
-    return {
-        type: actions.FETCH_EVENTS,
-        payload: events
-    }
-}
-
-export const loadEvents = () => {
-    return async dispatch => {
+        const eventsRef = firestore.collection('events');
+        
         try {
             dispatch(asyncActionStart());
-            let events = await fetchSampleData();
-            dispatch(fetchEvents(events));
+
+            // Check if there is a last event then get a collection of events and get the last event ID in that collection
+            let startAfter = lastEvent && await firestore.collection('events').doc(lastEvent.id).get();
+            let query;
+
+            // If there is a lst event, then do query to get events by date, and get all events after the last evetn to paginate,
+            // else, just do a regular query by date and limit without pagination
+            lastEvent ? query = eventsRef.where('date', '>=', today).orderBy('date').startAfter(startAfter).limit(2) 
+                        : query = eventsRef.where('date', '>=', today).orderBy('date').limit(2);
+
+            // Get the query snap to get the events from Firestore
+            let querySnap = await query.get();
+
+            // If we have 0 events then just return and don't call code below this check
+            if (querySnap.docs.length === 0) {
+                dispatch(asyncActionFinish());
+                return querySnap;
+            }
+
+            let events = [];
+
+            for (let i = 0; i < querySnap.docs.length; i++) {
+                let evt = { ...querySnap.docs[i].data(), id: querySnap.docs[i].id }
+                events.push(evt);
+            }
+
+            dispatch({
+                type: actions.FETCH_EVENTS,
+                payload: {
+                    events
+                }
+            })
+
             dispatch(asyncActionFinish());
-        } catch (error) {
+
+            return querySnap;
+
+        } catch(error) {
             console.log(error);
             dispatch(asyncActionError());
         }
     }
-}
