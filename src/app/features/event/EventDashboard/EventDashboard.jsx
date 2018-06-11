@@ -7,9 +7,18 @@ import LoadingComponent from '../../../layout/LoadingComponent';
 import { firestoreConnect } from 'react-redux-firebase';  // Enables to connect to Firestore
 import { getEventsForDashboard } from '../eventActions';
 
+const query = [
+  {
+    collection: 'activity',
+    orderBy: ['timestamp', 'desc'],
+    limit: 5
+  }
+];
+
 const mapStateToProps = (state) => ({
   events: state.events,
-  loading: state.async.loading
+  loading: state.async.loading,
+  activities: state.firestore.ordered.activity
 });
 
 const actions = {
@@ -21,7 +30,8 @@ class EventDashboard extends Component {
   state = {
     moreEvents: false,
     loadingInitial: true,
-    loadedEvents: []
+    loadedEvents: [],
+    contextRef: {}
   }
 
   async componentDidMount() {
@@ -55,8 +65,10 @@ class EventDashboard extends Component {
     }
   }
 
+  handleContextRef = contextRef => this.setState({ contextRef });
+
   render() {
-    const { loading } = this.props;
+    const { loading, activities } = this.props;
 
     if (this.state.loadingInitial) return <LoadingComponent inverted={ true } />
 
@@ -64,10 +76,12 @@ class EventDashboard extends Component {
       <div>
         <Grid>
           <Grid.Column width={10}>
-            <EventList events={ this.state.loadedEvents } loading={ loading } moreEvents={ this.state.moreEvents } getNextEvents={ this.getNextEvents } />          
+          <div ref={ this.handleContextRef }>
+            <EventList events={ this.state.loadedEvents } loading={ loading } moreEvents={ this.state.moreEvents } getNextEvents={ this.getNextEvents } />  
+          </div>
           </Grid.Column>
           <Grid.Column width={6}>
-            <EventActivity />
+            <EventActivity activities={ activities } contextRef={ this.state.contextRef } />
           </Grid.Column>
           <Grid.Column width={2}>
             <Loader active={ loading } />
@@ -79,5 +93,5 @@ class EventDashboard extends Component {
 }
 
 export default connect(mapStateToProps, actions)(
-  firestoreConnect([{ collection: 'events' }])(EventDashboard)
+  firestoreConnect(query)(EventDashboard)
 );
