@@ -4,6 +4,8 @@ import { toastr } from 'react-redux-toastr';
 import { createNewEvent } from '../../common/util/helpers';
 import moment from 'moment';
 import firebase from '../../config/firebase';
+import compareAsc from 'date-fns/compare_asc';
+import { firestoreReducer } from 'redux-firestore';
 
 export const fetchEvents = events => {
     return {
@@ -43,18 +45,54 @@ export const createEvent = event => {
 }
 
 export const updateEvent = event => {
-    return async (dispatch, getState, { getFirestore }) => {
-      const firestore = getFirestore();
+    return async (dispatch, getState) => {
+      const firestore = firebase.firestore();
   
+      dispatch(asyncActionStart());
+
       if (event.date !== getState().firestore.ordered.events[0].date) {
         event.date = moment(event.date).toDate();
       }
 
       try {
-        await firestore.update(`events/${event.id}`, event);
+          // Get refrence to event doc
+        let eventDocRef = firestore.collection('events').doc(event.id);
+
+        // Compare the date from current event date from store, to event dtae passed in
+        let dateEqual = compareAsc(getState().firestore.ordered.events[0].date.toDate(), event.date);
+
+        if (dateEqual !== 0) {
+            let batch = firestore.batch();
+
+            await batch.update(eventDocRef, event);
+
+            // Update event attendee information
+            // Get all event attenddee documents matching this event ID
+            // THen get the query snapshot of them
+            let eventAttendeeRef = firestore.collection('event_attendee');
+            let eventAttendeeQuery = await eventAttendeeRef.where('eventId', '==', event.id);
+            let eventAttendeeQuerySnap = await eventAttendeeQuery.get();
+
+            //
+            for (let i = 0; i < eventAttendeeQuerySnap.docs.length; i++) {
+                let eventAttendeeDocRef = await firestore.collection('event_attendee').doc(eventAttendeeQuerySnap.docs[i].id);
+
+                await batch.update(eventAttendeeDocRef, {
+                    eventDate: event.date
+                });
+
+                await batch.commit();
+            }
+        } else {
+            await eventDocRef.update(event);
+        }
+
+        dispatch(asyncActionFinish());
+
         toastr.success('Success', 'Event has been updated');
       } catch (error) {
         console.log(error);
+        dispatch(asyncActionError());
         toastr.error('Oops', 'Something went wrong');
       }
     };

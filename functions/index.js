@@ -68,3 +68,57 @@ exports.cancelActivity = functions.firestore.document('events/{eventId}').onUpda
             return console.log('Error adding activity ', err);
         })
 })
+
+
+// When user follows somebody, we will add a user "followers" collection to the user that got followed
+exports.userFollowing = functions.firestore
+    .document('users/{followerUid}/following/{followingUid}')
+    .onCreate((event, context) => {
+        const followerUid = context.params.followerUid;
+        const followingUid = context.params.followingUid;
+
+        // Get current users follower UID
+        const followerDoc = admin   
+            .firestore()
+            .collection('users')
+            .doc(followerUid);
+
+        return followerDoc.get().then(doc => {
+            let userData = doc.data();
+
+            // Get the followers data
+            let follower = {
+                displayName: userData.displayName,
+                photoURL: userData.photoURL || '/assets/user.png',
+                city: userData.city || 'Unkown City'
+            };
+
+            return admin
+                .firestore()
+                .collection('users')
+                .doc(followingUid)
+                .collection('followers')
+                .doc(followerUid)
+                .set(follower);
+        });
+    });
+
+
+exports.unfollowUser = functions.firestore
+    .document('users/{followerUid}/following/{followingUid}')
+    .onDelete((event, context) => {
+
+    return admin
+        .firestore()
+        .collection('users')
+        .doc(context.params.followingUid)
+        .collection('followers')
+        .doc(context.params.followerUid)
+        .delete()
+        .then(() => {
+            return console.log('doc deeleted');
+        })
+        .catch(err => {
+            return console.log(err);
+        });
+    });

@@ -9,7 +9,6 @@ export const updateProfile = (user) =>
     async (dispatch, getState, { getFirebase }) => {
         const firebase = getFirebase();
 
-
         // Do not send "isLoaded" and "isEmpty" across to Firestore
         const { isLoaded, isEmpty, ...updatedUser } = user;
 
@@ -115,23 +114,72 @@ export const deletePhoto = (photo) =>
     }
 
 export const setMainPhoto = photo =>
-    async (dispatch, getState, { getFirebase }) => {
-        const firebase = getFirebase();
+    async (dispatch, getState) => {
+        dispatch(asyncActionStart());
+        const firestore = firebase.firestore();
+        const user = firebase.auth().currentUser;
+        const today = new Date(Date.now());
+
+        // Get refrence to user doc
+        let userDocRef = firestore.collection('users').doc(user.uid);
+
+        // Get refrence to event attendee collection, so we can establish what events the user is attending
+        let eventAttendeeRef = firestore.collection('event_attendee');
         
         try {
-            return await firebase.updateProfile({
+            let batch = firestore.batch();
+
+            // Update the users photo URL
+            await batch.update(userDocRef, {
                 photoURL: photo.url
             });
+
+            // Get all the events user is attending in the future
+            let eventQuery = await eventAttendeeRef.where('userUid', '==', user.uid).where('eventDate', '>', today);
+
+            // Get the query snap of the query above
+            let eventQuerySnap = await eventQuery.get();
+
+            // For each event they are attending, loop over them and do following...
+            for (let i = 0; i < eventQuerySnap.docs.length; i++) {
+
+                // Get all the events they are attending or part of
+                let eventDocRef = await firestore.collection('events').doc(eventQuerySnap.docs[i].data().eventId);
+
+                // Get the data out of the event doc ref to see if user is hosting an event
+                let event = await eventDocRef.get();
+
+                // If the host Uid is equal to the current Uid, then set host photo URL to the photo passed in and
+                // set attenddes photo to photo passed in, else, just pass in photo to attendee list only.
+                if (event.data().hostUid === user.uid) {
+                    batch.update(eventDocRef, {
+                        hostPhotoURL: photo.url,
+                        [`attendees.${user.uid}.photoURL`]: photo.url
+                    })
+                } else {
+                    batch.update(eventDocRef, {
+                        [`attendees.${user.uid}.photoURL`]: photo.url
+                    })
+                }
+            }
+
+            // Update the changes in this batch
+            await batch.commit();
+
+            dispatch(asyncActionFinish());
+
         } catch (error) {
             console.log(error);
+            dispatch(asyncActionError());
             throw new Error('Problem seting main photo');
         }
     }
        
 export const goingToEvent = (event) =>
-    async (dispatch, getState, { getFirestore }) => {
-        const firestore = getFirestore();
-        const user = firestore.auth().currentUser;
+    async (dispatch, getState) => {
+        dispatch(asyncActionStart());
+        const firestore = firebase.firestore();
+        const user = firebase.auth().currentUser;
         const photoURL = getState().firebase.profile.photoURL;
 
         const attendee = {
@@ -143,22 +191,32 @@ export const goingToEvent = (event) =>
         };
 
         try {
-            // Add a new attendee to the exisitng event under attendee object map
-            await firestore.update(`events/${event.id}`, {
-                [`attendees.${user.uid}`]: attendee
-            })
+            // Get a refrence to the event ref doc
+            let eventDocRef = firestore.collection('events').doc(event.id);
+            let eventAttendeeDocRef = firestore.collection('event_attendee').doc(`${event.id}_${user.uid}`);
 
-            // Update the event_attendees document in firestore
-            await firestore.set(`event_attendee/${event.id}_${user.uid}`, {
-                eventId: event.id,
-                userUid: user.uid,
-                eventDate: event.date,
-                host: false
-            })
+            await firestore.runTransaction(async (transaction) => {
+                await transaction.get(eventDocRef);
 
+                // Add a new attendee to the exisitng event under attendee object map
+                await transaction.update(eventDocRef, {
+                    [`attendees.${user.uid}`]: attendee 
+                })
+
+                // Update the event_attendees document in firestore
+                await transaction.set(eventAttendeeDocRef, {
+                    eventId: event.id,
+                    userUid: user.uid,
+                    eventDate: event.date,
+                    host: false
+                })
+            });
+
+            dispatch(asyncActionFinish());
             toastr.success('Success', 'You have signed up to the event');
         } catch (error) {
             console.log(error);
+            dispatch(asyncActionError());
             toastr.error('Oops', 'Problem signing up to event');
         }
     }  
@@ -234,3 +292,50 @@ export const getUserEvents = (userUid, activeTab) =>
             dispatch(asyncActionError());
         }
     }
+
+
+// Follow a user. Need to pass in details of user we are going to follow by passing in "userToFollow"
+export const followUser = userToFollow => async (dispatch, getState, { getFirestore }) => {
+    // Get firestore and current user
+    const firestore = getFirestore();
+    const user = firestore.auth().currentUser;
+
+    // Get the data from the user we are going to follow and pass it into "following" variable
+    const following = {
+        photoURL: userToFollow.photoURL || '/assets/user.png',
+        city: userToFollow.city || 'Unkown City',
+        displayName: userToFollow.displayName
+    };
+
+    try {
+        // Create a new collection in the users collection, and pass in the "following" object into it
+        await firestore.set(
+            {
+                collection: 'users',
+                doc: user.uid,
+                subcollections: [{ collection: 'following', doc: userToFollow.id }]
+            },
+            following
+        );
+    } catch (error) {
+        console.log(error);
+    }
+}
+
+// Unfollow a user the current user is following
+export const unfollowUser = (userToUnfollow) => async (dispatch, getState, { getFirestore }) => {
+    // Get firestore and current user
+    const firestore = getFirestore();
+    const user = firestore.auth().currentUser;
+
+    try {
+        // Create a new collection in the users collection, and pass in the "following" object into it
+        await firestore.delete({
+            collection: 'users',
+            doc: user.uid,
+            subcollections: [{ collection: 'following', doc: userToUnfollow.id }]
+        });
+    } catch (error) {
+        console.log(error);
+    }
+}

@@ -5,7 +5,7 @@ import { firestoreConnect, isEmpty } from 'react-redux-firebase';
 import { compose } from 'redux';
 import { userDetailedQuery } from '../userQueries';
 import LoadingComponent from '../../../layout/LoadingComponent';
-import { getUserEvents } from '../userActions';
+import { getUserEvents, followUser, unfollowUser } from '../userActions';
 
 import UserDetailedHeader from './UserDetailedHeader';
 import UserDetailedDescription from './UserDetailedDescription';
@@ -33,12 +33,15 @@ const mapStateToPRops = (state, ownProps) => {
     eventsLoading: state.async.loading,
     auth: state.firebase.auth,
     photos: state.firestore.ordered.photos,
-    requesting: state.firestore.status.requesting  // Check if we are in process of requesting data from Firestore
+    requesting: state.firestore.status.requesting,  // Check if we are in process of requesting data from Firestore
+    following: state.firestore.ordered.following
   }
 }
 
 const actions = {
-  getUserEvents
+  getUserEvents,
+  followUser,
+  unfollowUser
 }
 
 class UserDetailedPage extends Component {
@@ -52,9 +55,10 @@ class UserDetailedPage extends Component {
   }
 
     render() {
-      const { profile, photos, auth, match, requesting, events, eventsLoading } = this.props;
+      const { profile, photos, auth, match, requesting, events, eventsLoading, followUser, following, unfollowUser } = this.props;
       const isCurrentUser = auth.uid === match.params.id;
       const loading = Object.values(requesting).some(a => a === true);
+      const isFollowing = !isEmpty(following);
 
       if (loading) return <LoadingComponent inverted={true} />
 
@@ -62,7 +66,7 @@ class UserDetailedPage extends Component {
           <Grid>
             <UserDetailedHeader profile={ profile } />
             <UserDetailedDescription profile={ profile } />
-            <UserDetailedSidebar isCurrentUser={ isCurrentUser } />
+            <UserDetailedSidebar profile={ profile } followUser={ followUser } isCurrentUser={ isCurrentUser } isFollowing={ isFollowing } unfollowUser={ unfollowUser } />
 
             { photos && photos.length > 0 &&
               <UserDetailedPhotos photos={ photos } />
@@ -76,5 +80,5 @@ class UserDetailedPage extends Component {
 
 export default compose(
   connect(mapStateToPRops, actions),
-  firestoreConnect((auth, userUid) => userDetailedQuery(auth, userUid)),
+  firestoreConnect((auth, userUid, match) => userDetailedQuery(auth, userUid, match)),
 )(UserDetailedPage);

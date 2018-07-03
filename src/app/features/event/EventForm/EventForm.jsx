@@ -28,7 +28,8 @@ const mapStateToProps = (state) => {
 
   return {
     initialValues: event,
-    event
+    event,
+    loading: state.async.loading
   }
 }
 
@@ -107,7 +108,7 @@ class EventForm extends Component {
     })
   }
 
-  onFormSubmit = values => {
+  onFormSubmit = async values => {
 
     values.venueLatLng = this.state.venueLatLng;
 
@@ -119,7 +120,7 @@ class EventForm extends Component {
         values.venueLatLng = this.props.event.venueLatLng
       }
 
-      this.props.updateEvent(values);
+      await this.props.updateEvent(values);
       this.props.history.goBack();
     } else {
       
@@ -130,7 +131,7 @@ class EventForm extends Component {
   }
 
   render() {
-    const { invalid, submitting, pristine } = this.props;
+    const { invalid, submitting, pristine, loading } = this.props;
 
     return (
       <Grid>
@@ -164,10 +165,10 @@ class EventForm extends Component {
             }
 
             <Field name='date' type='text' component={ DateInput } dateFormat='YYYY-MM-DD HH:mm' timeFormat='HH:mm' showTimeSelect placeholder='Date and time of event' />
-            <Button disabled={ invalid || submitting || pristine } positive type="submit">
+            <Button loading= {loading } disabled={ invalid || submitting || pristine } positive type="submit">
               Submit
             </Button>
-            <Button onClick={ this.props.history.goBack } type="button">Cancel</Button>
+            <Button disabled={ loading } onClick={ this.props.history.goBack } type="button">Cancel</Button>
             <Button 
               type='button' 
               color={ this.props.event.cancelled ? 'green' : 'red' } 
